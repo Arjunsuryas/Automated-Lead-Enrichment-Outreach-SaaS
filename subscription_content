@@ -1,0 +1,210 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+
+type PlanType = 'free' | 'pro' | 'enterprise';
+
+interface SubscriptionPlan {
+  id: string;
+  name: string;
+  type: PlanType;
+  price: number;
+  creditsPerMonth: number;
+  features: string[];
+}
+
+interface Subscription {
+  id: string;
+  planId: string;
+  status: 'active' | 'cancelled' | 'past_due';
+  currentPeriodEnd: string;
+  creditsRemaining: number;
+}
+
+interface SubscriptionContextType {
+  subscription: Subscription | null;
+  plans: SubscriptionPlan[];
+  loading: boolean;
+  subscribeToPlan: (planId: string) => Promise<void>;
+  cancelSubscription: () => Promise<void>;
+  getCreditUsage: () => {
+    total: number;
+    used: number;
+    remaining: number;
+    percentage: number;
+  };
+}
+
+const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
+
+export const useSubscription = () => {
+  const context = useContext(SubscriptionContext);
+  if (context === undefined) {
+    throw new Error('useSubscription must be used within a SubscriptionProvider');
+  }
+  return context;
+};
+
+// Mock subscription plans
+const mockPlans: SubscriptionPlan[] = [
+  {
+    id: 'plan_free',
+    name: 'Free Trial',
+    type: 'free',
+    price: 0,
+    creditsPerMonth: 10,
+    features: [
+      'Generate 10 leads per month',
+      'Basic email customization',
+      'Manual email sending'
+    ]
+  },
+  {
+    id: 'plan_pro',
+    name: 'Pro',
+    type: 'pro',
+    price: 49,
+    creditsPerMonth: 100,
+    features: [
+      'Generate 100 leads per month',
+      'Advanced email customization',
+      'Email sending & scheduling',
+      'CSV export'
+    ]
+  },
+  {
+    id: 'plan_enterprise',
+    name: 'Enterprise',
+    type: 'enterprise',
+    price: 199,
+    creditsPerMonth: 500,
+    features: [
+      'Generate 500 leads per month',
+      'Advanced email customization',
+      'Email sending & scheduling',
+      'CSV export',
+      'Priority support',
+      'Custom workflows'
+    ]
+  }
+];
+
+export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
+  children 
+}) => {
+  const { user } = useAuth();
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [plans] = useState<SubscriptionPlan[]>(mockPlans);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      if (!user) {
+        setSubscription(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // This would be a real API call to get the user's subscription
+        // For now, we'll simulate with a mock subscription
+        const mockSubscription: Subscription = {
+          id: 'sub_123456',
+          planId: 'plan_free',
+          status: 'active',
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          creditsRemaining: 8
+        };
+        
+        setSubscription(mockSubscription);
+      } catch (error) {
+        console.error('Failed to fetch subscription:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubscription();
+  }, [user]);
+
+  const subscribeToPlan = async (planId: string) => {
+    try {
+      setLoading(true);
+      // This would be a real API call to subscribe to a plan
+      // For now, we'll simulate success
+      const selectedPlan = plans.find(plan => plan.id === planId);
+      
+      if (!selectedPlan) {
+        throw new Error('Plan not found');
+      }
+      
+      const mockSubscription: Subscription = {
+        id: 'sub_' + Math.random().toString(36).substr(2, 9),
+        planId: selectedPlan.id,
+        status: 'active',
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        creditsRemaining: selectedPlan.creditsPerMonth
+      };
+      
+      setSubscription(mockSubscription);
+    } catch (error) {
+      console.error('Failed to subscribe to plan:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelSubscription = async () => {
+    try {
+      setLoading(true);
+      // This would be a real API call to cancel the subscription
+      // For now, we'll simulate success
+      if (!subscription) {
+        throw new Error('No active subscription');
+      }
+      
+      setSubscription({
+        ...subscription,
+        status: 'cancelled'
+      });
+    } catch (error) {
+      console.error('Failed to cancel subscription:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCreditUsage = () => {
+    if (!subscription) {
+      return { total: 0, used: 0, remaining: 0, percentage: 0 };
+    }
+    
+    const plan = plans.find(p => p.id === subscription.planId);
+    if (!plan) {
+      return { total: 0, used: 0, remaining: 0, percentage: 0 };
+    }
+    
+    const total = plan.creditsPerMonth;
+    const remaining = subscription.creditsRemaining;
+    const used = total - remaining;
+    const percentage = Math.round((used / total) * 100);
+    
+    return { total, used, remaining, percentage };
+  };
+
+  const value = {
+    subscription,
+    plans,
+    loading,
+    subscribeToPlan,
+    cancelSubscription,
+    getCreditUsage
+  };
+
+  return (
+    <SubscriptionContext.Provider value={value}>
+      {children}
+    </SubscriptionContext.Provider>
+  );
+};
